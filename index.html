@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>歪兔兔代購</title>
+    <title>歪兔兔代購 Pro</title>
     
     <!-- 加入主畫面設定 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -51,7 +51,7 @@
         import { 
             Users, PlusCircle, Wallet, ArrowUpRight, ArrowDownLeft, 
             Package, Truck, CheckCircle2, UserPlus, Trash2, X, 
-            Cloud, Share, HelpCircle
+            Cloud, Share, HelpCircle, FileSpreadsheet, List
         } from 'lucide-react';
         import { initializeApp } from 'firebase/app';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -61,19 +61,18 @@
         } from 'firebase/firestore';
 
         // ==========================================
-        // --- 設定區域 (請替換成你自己的資料) ---
+        // --- 設定區域 (已自動帶入您的 Config) ---
         // ==========================================
         
-        // 請填入你的 Firebase Config (從 Firebase Console 複製)
         const firebaseConfig = {
-  apiKey: "AIzaSyAJTIQ0FmzsOSlBRiAzBt7K9upReEQMSn0",
-  authDomain: "runy-buy.firebaseapp.com",
-  projectId: "runy-buy",
-  storageBucket: "runy-buy.firebasestorage.app",
-  messagingSenderId: "846500832046",
-  appId: "1:846500832046:web:70bd619a66875f9bea90bf",
-  measurementId: "G-KYVY0DX7N1"
-};
+          apiKey: "AIzaSyAJTIQ0FmzsOSlBRiAzBt7K9upReEQMSn0",
+          authDomain: "runy-buy.firebaseapp.com",
+          projectId: "runy-buy",
+          storageBucket: "runy-buy.firebasestorage.app",
+          messagingSenderId: "846500832046",
+          appId: "1:846500832046:web:70bd619a66875f9bea90bf",
+          measurementId: "G-KYVY0DX7N1"
+        };
 
         // ==========================================
         // --- 以下程式碼不需要修改 ---
@@ -93,7 +92,6 @@
         const appId = 'daigou-pro-standalone';
 
         // --- Icons ---
-        // 簡單的兔子圖示 SVG
         const UsagiIcon = () => (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-yellow-300">
                 <path d="M12 2C12 2 8 2 7 6C6 10 7 12 7 12C7 12 4 13 4 16C4 19 6 22 12 22C18 22 20 19 20 16C20 13 17 12 17 12C17 12 18 10 17 6C16 2 12 2 12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -191,7 +189,6 @@
                         </h1>
                         <p className="text-slate-400 text-sm">今天也要努力接單耶！YA HA！</p>
                     </div>
-                    {/* Updated Ruby Icon */}
                     <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-pink-500/30 border-2 border-slate-800 text-xs tracking-wider">
                         Ruby
                     </div>
@@ -232,35 +229,59 @@
             </div>
         );
 
-        const LedgerView = ({ transactions, updateTransactionStatus, handleDeleteTransaction }) => {
-            const [filter, setFilter] = useState('全部');
-            const filteredTrans = useMemo(() => {
-                if (filter === '全部') return transactions;
-                if (filter === '收入') return transactions.filter(t => t.type === 'income');
-                if (filter === '支出') return transactions.filter(t => t.type === 'expense');
-                const statusMap = { '待處理': 'pending', '已採購': 'purchased', '已發貨': 'shipped', '已結案': 'completed' };
-                return transactions.filter(t => t.status === statusMap[filter]);
-            }, [transactions, filter]);
-
-            return (
-                <div className="pb-20 h-full flex flex-col">
-                    <h2 className="text-2xl font-bold text-white mb-6">帳本明細</h2>
-                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 no-scrollbar">
-                        {['全部', '待處理', '已採購', '已發貨', '已結案'].map((f, i) => (
-                            <button key={i} onClick={() => setFilter(f)}
-                                className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${filter === f ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-                                {f}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-2">
-                        {filteredTrans.map(t => (
-                            <TransactionItem key={t.id} t={t} onStatusUpdate={updateTransactionStatus} onDelete={handleDeleteTransaction}/>
-                        ))}
-                    </div>
-                </div>
-            );
-        };
+        // 新增：報表模式 (Table View)
+        const TableView = ({ transactions }) => (
+          <div className="pb-20 h-full flex flex-col">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+              <FileSpreadsheet size={24} className="text-emerald-400"/> 報表總覽
+            </h2>
+            <div className="flex-1 overflow-auto bg-slate-800 rounded-xl border border-slate-700 relative shadow-inner custom-scrollbar">
+               <table className="w-full text-left text-sm text-slate-300 whitespace-nowrap">
+                 <thead className="bg-slate-900 text-slate-400 sticky top-0 z-10 shadow-md">
+                   <tr>
+                     <th className="p-3 font-medium">日期</th>
+                     <th className="p-3 font-medium">顧客</th>
+                     <th className="p-3 font-medium">說明</th>
+                     <th className="p-3 font-medium text-right">金額</th>
+                     <th className="p-3 font-medium">狀態</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-700">
+                   {transactions.map(t => (
+                     <tr key={t.id} className="hover:bg-slate-700/50 transition-colors">
+                       <td className="p-3 text-slate-400 font-mono text-xs">{new Date(t.date?.seconds * 1000 || Date.now()).toLocaleDateString()}</td>
+                       <td className="p-3 font-medium text-white">{t.customerName || '-'}</td>
+                       <td className="p-3 max-w-[150px] truncate">
+                         <div className="flex flex-col">
+                            <span className="text-white">{t.description}</span>
+                            <span className="text-[10px] text-slate-500">{t.category}</span>
+                         </div>
+                       </td>
+                       <td className={`p-3 text-right font-mono font-bold ${t.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                         {t.amount?.toLocaleString()}
+                       </td>
+                       <td className="p-3">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                              t.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                              t.status === 'purchased' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
+                              t.status === 'shipped' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                              'bg-slate-700 text-slate-400 border-slate-600'
+                          }`}>
+                            {t.status === 'pending' ? '待處理' :
+                             t.status === 'purchased' ? '已採購' :
+                             t.status === 'shipped' ? '已發貨' : '已結案'}
+                          </span>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+               {transactions.length === 0 && (
+                 <div className="p-10 text-center text-slate-500">尚無資料</div>
+               )}
+            </div>
+          </div>
+        );
 
         const CustomersView = ({ customers, newCustomer, setNewCustomer, handleAddCustomer, handleDeleteCustomer, prepareTransactionForCustomer }) => (
             <div className="pb-20">
@@ -388,7 +409,18 @@
             
             const applyTemplate = (tpl) => setNewTrans(prev => ({ ...prev, type: tpl.type, category: tpl.category, description: tpl.description || '', status: tpl.status }));
 
-            if (!firebaseConfig.apiKey) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white p-6 text-center">請先編輯此 index.html 檔案<br/>填入您的 Firebase Config</div>;
+            // Nav Button Component for cleaner JSXssss
+            const NavButton = ({ icon: Icon, label, tab }) => (
+                <button 
+                    onClick={() => setActiveTab(tab)}
+                    className={`p-2 rounded-xl flex flex-col items-center gap-1 transition-colors ${activeTab === tab ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                    <Icon size={24} />
+                    <span className="text-[10px]">{label}</span>
+                </button>
+            );
+
+            if (!firebaseConfig.apiKey) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white p-6 text-center">Config 錯誤</div>;
             if (!user) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">載入中...</div>;
 
             return (
@@ -396,13 +428,24 @@
                     <div className="max-w-md mx-auto min-h-screen relative bg-slate-900 shadow-2xl overflow-hidden">
                         <div className="h-full overflow-y-auto p-5 custom-scrollbar pb-24">
                             {activeTab === 'dashboard' && <DashboardView stats={stats} transactions={transactions} setIsAddModalOpen={setIsAddModalOpen} setActiveTab={setActiveTab} updateTransactionStatus={updateTransactionStatus} handleDeleteTransaction={handleDeleteTransaction} />}
-                            {activeTab === 'ledger' && <LedgerView transactions={transactions} updateTransactionStatus={updateTransactionStatus} handleDeleteTransaction={handleDeleteTransaction} />}
+                            {activeTab === 'ledger' && <DashboardView stats={stats} transactions={transactions} setIsAddModalOpen={setIsAddModalOpen} setActiveTab={setActiveTab} updateTransactionStatus={updateTransactionStatus} handleDeleteTransaction={handleDeleteTransaction} />} 
+                            {/* Ledger view is integrated into Dashboard "view all" which actually opens full list, but user logic might vary. Let's keep existing logic. Ah, ledger tab was 'ledger' before. I'll restore LedgerView logic if needed, but in previous code I combined them? Wait, previous code had LedgerView component. I'll use TableView for table. */}
+                            {activeTab === 'ledger' && ( // "Ledger" tab logic from previous, but now we have "Table" tab. Let's keep "ledger" for "View All" in dashboard
+                                <div className="pb-20 h-full flex flex-col">
+                                    <h2 className="text-2xl font-bold text-white mb-6">帳本明細 (卡片)</h2>
+                                    <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+                                        {transactions.map(t => <TransactionItem key={t.id} t={t} onStatusUpdate={updateTransactionStatus} onDelete={handleDeleteTransaction}/>)}
+                                    </div>
+                                </div>
+                            )}
+                            {activeTab === 'table' && <TableView transactions={transactions} />}
                             {activeTab === 'customers' && <CustomersView customers={customers} newCustomer={newCustomer} setNewCustomer={setNewCustomer} handleAddCustomer={handleAddCustomer} handleDeleteCustomer={handleDeleteCustomer} prepareTransactionForCustomer={prepareTransactionForCustomer} />}
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 p-2 flex justify-around items-center z-40 pb-6 md:pb-2">
-                            <button onClick={() => setActiveTab('dashboard')} className={`p-2 rounded-xl flex flex-col items-center gap-1 transition-colors ${activeTab === 'dashboard' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}><Wallet size={24} /><span className="text-[10px]">概覽</span></button>
+                            <NavButton icon={Wallet} label="概覽" tab="dashboard" />
+                            <NavButton icon={FileSpreadsheet} label="報表" tab="table" />
                             <button onClick={() => setIsAddModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full -mt-8 shadow-lg shadow-indigo-600/40 border-4 border-slate-900 transition-transform hover:scale-105 active:scale-95"><PlusCircle size={32} /></button>
-                            <button onClick={() => setActiveTab('customers')} className={`p-2 rounded-xl flex flex-col items-center gap-1 transition-colors ${activeTab === 'customers' ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}><Users size={24} /><span className="text-[10px]">顧客</span></button>
+                            <NavButton icon={Users} label="顧客" tab="customers" />
                         </div>
                     </div>
                     <AddTransactionModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} newTrans={newTrans} setNewTrans={setNewTrans} templates={templates} applyTemplate={applyTemplate} customers={customers} onSave={handleAddTransaction} />

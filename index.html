@@ -335,9 +335,9 @@
                         <div className="space-y-4">
                             <div><label className="block text-slate-400 text-sm mb-1">金額</label><input type="number" value={newTrans.amount} onChange={(e) => setNewTrans({...newTrans, amount: e.target.value})} className="w-full bg-slate-800 border border-slate-700 text-white text-2xl font-bold p-3 rounded-xl" placeholder="0" /></div>
                             <div>
-                                <label className="block text-slate-400 text-sm mb-1">顧客</label>
+                                <label className="block text-slate-400 text-sm mb-1">顧客 (必填)</label>
                                 <select value={newTrans.customerId} onChange={(e) => { const cust = customers.find(c => c.id === e.target.value); setNewTrans({...newTrans, customerId: e.target.value, customerName: cust ? cust.name : ''}); }} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl">
-                                    <option value="">-- 無 / 一般交易 --</option>
+                                    <option value="" disabled>-- 請選擇顧客 --</option>
                                     {customers.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
                                 </select>
                             </div>
@@ -384,6 +384,7 @@
 
             const handleAddTransaction = async () => {
                 if (!user || !newTrans.amount) return;
+                if (!newTrans.customerId) return;
                 await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), { ...newTrans, amount: Number(newTrans.amount), date: serverTimestamp() });
                 setIsAddModalOpen(false);
                 setNewTrans({ type: 'income', amount: '', description: '', customerId: '', customerName: '', category: '代購訂金', status: 'pending' });
@@ -409,7 +410,7 @@
             
             const applyTemplate = (tpl) => setNewTrans(prev => ({ ...prev, type: tpl.type, category: tpl.category, description: tpl.description || '', status: tpl.status }));
 
-            // Nav Button Component for cleaner JSXssss
+            // Nav Button Component for cleaner JSX
             const NavButton = ({ icon: Icon, label, tab }) => (
                 <button 
                     onClick={() => setActiveTab(tab)}
@@ -428,8 +429,7 @@
                     <div className="max-w-md mx-auto min-h-screen relative bg-slate-900 shadow-2xl overflow-hidden">
                         <div className="h-full overflow-y-auto p-5 custom-scrollbar pb-24">
                             {activeTab === 'dashboard' && <DashboardView stats={stats} transactions={transactions} setIsAddModalOpen={setIsAddModalOpen} setActiveTab={setActiveTab} updateTransactionStatus={updateTransactionStatus} handleDeleteTransaction={handleDeleteTransaction} />}
-                            {activeTab === 'ledger' && <DashboardView stats={stats} transactions={transactions} setIsAddModalOpen={setIsAddModalOpen} setActiveTab={setActiveTab} updateTransactionStatus={updateTransactionStatus} handleDeleteTransaction={handleDeleteTransaction} />} 
-                            {/* Ledger view is integrated into Dashboard "view all" which actually opens full list, but user logic might vary. Let's keep existing logic. Ah, ledger tab was 'ledger' before. I'll restore LedgerView logic if needed, but in previous code I combined them? Wait, previous code had LedgerView component. I'll use TableView for table. */}
+                            {/* Removed duplicate DashboardView render for 'ledger' tab to avoid confusion. 'ledger' tab content is now implicitly handled if NavButton for it existed, but it was removed in previous steps. */}
                             {activeTab === 'ledger' && ( // "Ledger" tab logic from previous, but now we have "Table" tab. Let's keep "ledger" for "View All" in dashboard
                                 <div className="pb-20 h-full flex flex-col">
                                     <h2 className="text-2xl font-bold text-white mb-6">帳本明細 (卡片)</h2>

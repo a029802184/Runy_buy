@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>歪兔兔代購 Pro</title>
+    <title>歪兔兔代購 OMS v16</title>
     
     <!-- 加入主畫面設定 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -29,41 +29,65 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* iOS Safe Area Support */
+        /* iOS Performance Fixes */
+        html, body {
+            height: 100%;
+            overflow: hidden; 
+            background-color: #0f172a;
+        }
         body {
             padding-top: env(safe-area-inset-top);
             padding-bottom: env(safe-area-inset-bottom);
-            background-color: #0f172a;
-            overscroll-behavior-y: none; /* 防止下拉重整 */
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #root {
+            height: 100%;
+            display: flex;
+            justify-content: center;
         }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        .checkbox-wrapper input[type="checkbox"] {
+            accent-color: #10b981;
+            width: 1.2rem;
+            height: 1.2rem;
+            cursor: pointer;
+        }
+        
+        @keyframes slideDown {
+            from { transform: translate(-50%, -100%); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .toast-enter {
+            animation: slideDown 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useMemo } from 'react';
+        import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
         import ReactDOM from 'react-dom/client';
         import { 
             Users, PlusCircle, Wallet, ArrowUpRight, ArrowDownLeft, 
             Package, Truck, CheckCircle2, UserPlus, Trash2, X, 
-            Cloud, Share, HelpCircle, FileSpreadsheet, List
+            Cloud, Share, HelpCircle, FileSpreadsheet, List, Lock, Download,
+            ClipboardList, History, Archive, Box, ShoppingBag, CheckSquare, Plus, AlertTriangle,
+            RotateCcw, Edit, Check, Tag, FolderPlus, Layers, Search, Banknote, Camera, Pencil
         } from 'lucide-react';
         import { initializeApp } from 'firebase/app';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
         import { 
             getFirestore, collection, addDoc, onSnapshot, query, 
-            orderBy, serverTimestamp, deleteDoc, doc, updateDoc 
+            orderBy, serverTimestamp, deleteDoc, doc, updateDoc, writeBatch 
         } from 'firebase/firestore';
 
-        // ==========================================
-        // --- 設定區域 (已自動帶入您的 Config) ---
-        // ==========================================
-        
+        // --- Config ---
         const firebaseConfig = {
           apiKey: "AIzaSyAJTIQ0FmzsOSlBRiAzBt7K9upReEQMSn0",
           authDomain: "runy-buy.firebaseapp.com",
@@ -74,14 +98,8 @@
           measurementId: "G-KYVY0DX7N1"
         };
 
-        // ==========================================
-        // --- 以下程式碼不需要修改 ---
-        // ==========================================
-
-        // Initialize Firebase
         let app, auth, db;
         try {
-            if (!firebaseConfig.apiKey) throw new Error("尚未設定 Firebase Config");
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
@@ -89,9 +107,8 @@
             console.error("Firebase Init Error:", e);
         }
 
-        const appId = 'daigou-pro-standalone';
+        const SHARED_GROUP_ID = 'main_accounting_group'; 
 
-        // --- Icons ---
         const UsagiIcon = () => (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-yellow-300">
                 <path d="M12 2C12 2 8 2 7 6C6 10 7 12 7 12C7 12 4 13 4 16C4 19 6 22 12 22C18 22 20 19 20 16C20 13 17 12 17 12C17 12 18 10 17 6C16 2 12 2 12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -101,9 +118,27 @@
             </svg>
         );
 
-        // --- Components ---
+        // --- Shared Components ---
 
-        const StatCard = ({ title, value, type, icon: Icon }) => (
+        const Toast = ({ message, type, isVisible, onClose }) => {
+            useEffect(() => {
+                if (isVisible) {
+                    const timer = setTimeout(onClose, 3000);
+                    return () => clearTimeout(timer);
+                }
+            }, [isVisible, onClose]);
+
+            if (!isVisible) return null;
+
+            return (
+                <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl z-[10000] flex items-center gap-2 toast-enter ${type === 'error' ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-white'}`}>
+                    {type === 'success' ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                    <span className="font-bold text-sm tracking-wide">{message}</span>
+                </div>
+            );
+        };
+
+        const StatCard = memo(({ title, value, type, icon: Icon }) => (
             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
                 <div className="flex justify-between items-start mb-2">
                     <div className={`p-2 rounded-lg ${
@@ -120,59 +155,19 @@
                     {value.toLocaleString()}
                 </div>
             </div>
-        );
+        ));
 
-        const TransactionItem = ({ t, onDelete, onStatusUpdate }) => {
-            const isIncome = t.type === 'income';
-            const statusColors = {
-                pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-                purchased: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-                shipped: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-                completed: 'bg-slate-700 text-slate-400 border-slate-600',
-            };
-            const statusLabels = {
-                pending: '待處理', purchased: '已採購', shipped: '已發貨', completed: '已結案',
-            };
-
+        const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, confirmText = "確認", cancelText = "取消", isDestructive = false }) => {
+            if (!isOpen) return null;
             return (
-                <div className="bg-slate-800 rounded-xl p-4 mb-3 border border-slate-700 flex items-center justify-between group">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            isIncome ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
-                        }`}>
-                            {isIncome ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
-                        </div>
-                        <div>
-                            <div className="font-medium text-white flex items-center gap-2">
-                                {t.customerName || '非指定客戶'}
-                                <span className="text-slate-500 text-xs font-normal">
-                                    {new Date(t.date?.seconds * 1000 || Date.now()).toLocaleDateString()}
-                                </span>
-                            </div>
-                            <div className="text-slate-400 text-sm flex gap-2 items-center mt-1">
-                                <span className="bg-slate-700 px-1.5 py-0.5 rounded text-xs">{t.category}</span>
-                                {t.description}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="text-right flex flex-col items-end gap-1">
-                        <div className={`font-bold ${isIncome ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {isIncome ? '+' : '-'}{t.amount?.toLocaleString()}
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button 
-                                onClick={() => {
-                                    const nextStatus = t.status === 'pending' ? 'purchased' :
-                                        t.status === 'purchased' ? 'shipped' :
-                                        t.status === 'shipped' ? 'completed' : 'pending';
-                                    onStatusUpdate(t.id, nextStatus);
-                                }}
-                                className={`text-xs px-2 py-0.5 rounded-full border cursor-pointer transition-colors ${statusColors[t.status] || statusColors.pending}`}
-                            >
-                                {statusLabels[t.status] || '未標記'}
-                            </button>
-                            <button onClick={() => onDelete(t.id)} className="text-slate-600 hover:text-rose-500 transition-colors p-1">
-                                <Trash2 size={14} />
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-200 p-4" style={{zIndex: 9999}}>
+                    <div className="bg-slate-900 w-full max-w-sm rounded-2xl p-6 border border-slate-700 shadow-2xl">
+                        <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+                        <div className="text-slate-300 text-sm mb-6 whitespace-pre-wrap">{message}</div>
+                        <div className="flex gap-3">
+                            <button onClick={onCancel} className="flex-1 py-3 bg-slate-800 rounded-xl text-slate-300 font-medium hover:bg-slate-700">{cancelText}</button>
+                            <button onClick={onConfirm} className={`flex-1 py-3 rounded-xl text-white font-bold shadow-lg ${isDestructive ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
+                                {confirmText}
                             </button>
                         </div>
                     </div>
@@ -180,172 +175,539 @@
             );
         };
 
-        const DashboardView = ({ stats, transactions, setIsAddModalOpen, setActiveTab, updateTransactionStatus, handleDeleteTransaction }) => (
-            <div className="space-y-6 pb-20">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                            歪兔兔代購 <UsagiIcon />
-                        </h1>
-                        <p className="text-slate-400 text-sm">今天也要努力接單耶！YA HA！</p>
-                    </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-pink-500/30 border-2 border-slate-800 text-xs tracking-wider">
-                        Ruby
+        const BatchPurchaseModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
+            const [cost, setCost] = useState('');
+            if (!isOpen) return null;
+
+            const handleConfirm = () => {
+                if(!cost) return;
+                onConfirm(cost);
+                setCost('');
+            }
+
+            return (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-200 p-4" style={{zIndex: 9999}}>
+                    <div className="bg-slate-900 w-full max-w-sm rounded-2xl p-6 border border-slate-700 shadow-2xl">
+                        <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
+                        <div className="text-slate-300 text-sm mb-4 whitespace-pre-wrap">{message}</div>
+                        <div className="mb-6">
+                            <label className="block text-emerald-400 text-xs font-bold mb-1">請輸入本次採購總成本 (必填)</label>
+                            <input type="number" value={cost} onChange={(e) => setCost(e.target.value)} className="w-full bg-slate-800 border border-slate-600 text-white p-3 rounded-xl text-lg focus:border-emerald-500 outline-none" placeholder="$ 0" autoFocus />
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => { setCost(''); onCancel(); }} className="flex-1 py-3 bg-slate-800 rounded-xl text-slate-300 font-medium hover:bg-slate-700">取消</button>
+                            <button onClick={handleConfirm} disabled={!cost} className={`flex-1 py-3 rounded-xl text-white font-bold shadow-lg ${cost ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}>確認採購</button>
+                        </div>
                     </div>
                 </div>
+            );
+        };
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <StatCard title="目前總資產" value={stats.balance} type="balance" icon={Wallet} />
-                    <div className="grid grid-cols-2 gap-4 md:col-span-2">
-                        <StatCard title="總收入" value={stats.income} type="income" icon={ArrowDownLeft} />
-                        <StatCard title="總支出" value={stats.expense} type="expense" icon={ArrowUpRight} />
-                    </div>
-                </div>
+        // NEW: Edit Order Modal
+        const EditOrderModal = ({ isOpen, onClose, order, onSave }) => {
+            const [quantity, setQuantity] = useState(0);
+            const [amount, setAmount] = useState(0);
+            const [note, setNote] = useState('');
 
-                <button 
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 active:scale-95 text-white py-4 rounded-xl shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 font-bold text-lg transition-all"
-                >
-                    <PlusCircle size={24} />
-                    記一筆
-                </button>
+            useEffect(() => {
+                if (order) {
+                    setQuantity(order.quantity || 1);
+                    setAmount(order.amount || 0);
+                    setNote(order.note || '');
+                }
+            }, [order, isOpen]);
 
-                <div>
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-white font-bold text-lg">最近交易</h2>
-                        <button onClick={() => setActiveTab('ledger')} className="text-indigo-400 text-sm">查看全部</button>
-                    </div>
-                    <div className="space-y-2">
-                        {transactions.slice(0, 5).map(t => (
-                            <TransactionItem key={t.id} t={t} onStatusUpdate={updateTransactionStatus} onDelete={handleDeleteTransaction} />
-                        ))}
-                        {transactions.length === 0 && (
-                            <div className="text-center py-10 text-slate-500 bg-slate-800/50 rounded-xl border border-dashed border-slate-700">
-                                尚無交易紀錄
+            if (!isOpen || !order) return null;
+
+            const handleSubmit = () => {
+                onSave(order.id, {
+                    quantity: Number(quantity),
+                    amount: Number(amount),
+                    note
+                });
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-200 p-4" style={{zIndex: 10000}}>
+                     <div className="bg-slate-900 w-full max-w-sm rounded-2xl p-6 border border-slate-700 shadow-2xl">
+                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Edit size={20}/> 修改訂單</h3>
+                        
+                        <div className="mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                            <div className="text-xs text-slate-400 mb-1">{order.customerName}</div>
+                            <div className="text-white font-medium">{order.description}</div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-slate-400 text-sm mb-1">數量</label>
+                                    <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" />
+                                </div>
+                                <div>
+                                    <label className="block text-slate-400 text-sm mb-1">總金額</label>
+                                    <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" />
+                                </div>
                             </div>
+                            <div>
+                                <label className="block text-slate-400 text-sm mb-1">備註</label>
+                                <input type="text" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" />
+                            </div>
+                            <div className="flex gap-3 mt-4">
+                                <button onClick={onClose} className="flex-1 py-3 bg-slate-800 rounded-xl text-slate-400">取消</button>
+                                <button onClick={handleSubmit} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">儲存修改</button>
+                            </div>
+                        </div>
+                     </div>
+                </div>
+            );
+        };
+
+        const SearchBar = ({ value, onChange, placeholder = "搜尋..." }) => (
+            <div className="relative mb-4">
+                <Search className="absolute left-3 top-2.5 text-slate-500" size={18} />
+                <input 
+                    type="text" 
+                    value={value} 
+                    onChange={(e) => onChange(e.target.value)} 
+                    placeholder={placeholder}
+                    className="w-full bg-slate-800 border border-slate-700 text-white pl-10 p-2 rounded-xl focus:outline-none focus:border-indigo-500"
+                />
+            </div>
+        );
+
+        const SwipeableListItem = memo(({ children, onDelete, confirmMessage = "確定要刪除嗎？" }) => {
+            const [offsetX, setOffsetX] = useState(0);
+            const [showConfirm, setShowConfirm] = useState(false);
+            const startX = useRef(0);
+            const isDragging = useRef(false);
+
+            const onTouchStart = (e) => {
+                startX.current = e.touches[0].clientX;
+                isDragging.current = true;
+            };
+
+            const onTouchMove = (e) => {
+                if (!isDragging.current) return;
+                const currentX = e.touches[0].clientX;
+                const diff = currentX - startX.current;
+                if (diff < 0 && diff > -120) setOffsetX(diff);
+                else if (diff > 0) setOffsetX(0);
+            };
+
+            const onTouchEnd = () => {
+                isDragging.current = false;
+                if (offsetX < -50) setOffsetX(-80);
+                else setOffsetX(0);
+            };
+
+            return (
+                <div className="relative mb-2 overflow-hidden rounded-lg bg-rose-600 border border-slate-700 touch-pan-y">
+                    <div 
+                        className="absolute right-0 top-0 bottom-0 w-[80px] flex items-center justify-center text-white z-0 cursor-pointer"
+                        onClick={() => setShowConfirm(true)}
+                    >
+                        <Trash2 size={24} />
+                    </div>
+                    <div 
+                        className="relative bg-slate-800 z-10 w-full"
+                        style={{ transform: `translateX(${offsetX}px)`, transition: isDragging.current ? 'none' : 'transform 0.2s ease-out' }}
+                        onTouchStart={onTouchStart}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
+                    >
+                        {children}
+                        {offsetX === -80 && <div className="absolute top-0 right-[-80px] w-[80px] h-full z-20 cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowConfirm(true); }} />}
+                    </div>
+                    <ConfirmModal 
+                        isOpen={showConfirm}
+                        title="確認刪除"
+                        message={confirmMessage}
+                        confirmText="刪除"
+                        isDestructive={true}
+                        onConfirm={() => { onDelete(); setShowConfirm(false); setOffsetX(0); }}
+                        onCancel={() => { setShowConfirm(false); setOffsetX(0); }}
+                    />
+                </div>
+            );
+        });
+
+        const useGroupedTransactions = (transactions, statusFilter, searchTerm, selectedCategory) => {
+            return useMemo(() => {
+                const filtered = transactions.filter(t => {
+                    const statusMatch = Array.isArray(statusFilter) ? statusFilter.includes(t.status) : t.status === statusFilter;
+                    const searchMatch = !searchTerm || (t.description?.includes(searchTerm) || t.customerName?.includes(searchTerm));
+                    let catMatch = true;
+                    if (selectedCategory !== 'All') {
+                        if (selectedCategory === 'Uncategorized') catMatch = !t.description.startsWith('[');
+                        else catMatch = t.description.startsWith(`[${selectedCategory}]`);
+                    }
+                    return statusMatch && searchMatch && catMatch;
+                });
+                const groups = {};
+                filtered.forEach(t => {
+                    const key = t.description || '未分類商品';
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(t);
+                });
+                return { groups, sortedKeys: Object.keys(groups).sort(), filteredItems: filtered };
+            }, [transactions, statusFilter, searchTerm, selectedCategory]);
+        };
+
+        // 1. 接單區 (Active Orders)
+        const ActiveOrdersView = ({ transactions, categories, updateTransactionStatus, onAppendOrder, onDeleteTransaction, onEditOrder, showToast }) => {
+            const [selectedCategory, setSelectedCategory] = useState('All');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [purchaseModalData, setPurchaseModalData] = useState(null);
+            
+            const { groups, sortedKeys, filteredItems } = useGroupedTransactions(transactions, ['pending', 'paid'], searchTerm, selectedCategory);
+
+            const handleCategoryPurchaseClick = () => {
+                if (filteredItems.length === 0) {
+                    showToast("⚠️ 此主題下目前無訂單", "error");
+                    return;
+                }
+                const unpaidCount = filteredItems.filter(t => t.status !== 'paid').length;
+                const catName = selectedCategory === 'All' ? "所有顯示商品" : selectedCategory;
+                
+                const msg = unpaidCount > 0 
+                    ? `⚠️ 注意："${catName}" 還有 ${unpaidCount} 筆訂單尚未付款。\n將強制執行採購。`
+                    : `將 "${catName}" (共 ${filteredItems.length} 筆) 標記為採購。`;
+
+                setPurchaseModalData({
+                    items: filteredItems,
+                    title: "主題批次採購 & 成本錄入",
+                    message: msg
+                });
+            };
+
+            const executeBatchPurchase = async (costInput) => {
+                if (!purchaseModalData) return;
+                setIsProcessing(true);
+                try {
+                    const batch = writeBatch(db);
+                    purchaseModalData.items.forEach(t => { const ref = doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions', t.id); batch.update(ref, { status: 'purchased' }); });
+                    const costRef = doc(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions'));
+                    const desc = selectedCategory === 'All' ? '批次採購成本' : `[${selectedCategory}] 批次採購成本`;
+                    batch.set(costRef, { type: 'expense', category: '採購成本', description: desc, amount: Number(costInput), date: serverTimestamp(), status: 'completed' });
+                    await batch.commit();
+                    showToast("✅ 全數採購成功！");
+                } catch (e) { console.error(e); alert("更新失敗"); }
+                setIsProcessing(false); setPurchaseModalData(null);
+            };
+
+            return (
+                <div className="h-full flex flex-col">
+                    <div className="mb-2 flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-white flex items-center gap-2 mb-2"><ClipboardList size={24} className="text-blue-400"/> 接單區</h2>
+                        
+                        {/* Only show Full Purchase button if a specific category is selected (not All, not Uncategorized) */}
+                        {selectedCategory !== 'All' && selectedCategory !== 'Uncategorized' && (
+                            <button 
+                                onClick={handleCategoryPurchaseClick}
+                                className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-lg border border-purple-500 flex items-center gap-1 active:scale-95 transition-transform"
+                            >
+                                <ShoppingBag size={14}/> 全數採購 (此主題)
+                            </button>
                         )}
                     </div>
+                    <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="搜尋商品或顧客..." />
+                    <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar mb-2">
+                        <button onClick={() => setSelectedCategory('All')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === 'All' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>全部</button>
+                        {categories.map(cat => (<button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === cat.name ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>{cat.name}</button>))}
+                        <button onClick={() => setSelectedCategory('Uncategorized')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === 'Uncategorized' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>未分類</button>
+                    </div>
+                    <div className="flex-1 overflow-auto bg-slate-900/50 rounded-xl custom-scrollbar space-y-4 p-1">
+                        {sortedKeys.map(productName => {
+                            const items = groups[productName];
+                            const totalAmount = items.reduce((sum, t) => sum + Number(t.amount), 0);
+                            const totalQty = items.reduce((sum, t) => sum + (Number(t.quantity) || 1), 0);
+                            const guessPrice = items.length > 0 ? Math.round(Number(items[0].amount) / (Number(items[0].quantity) || 1)) : 0;
+                            return (
+                                <div key={productName} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden relative shadow-md">
+                                    <div className="bg-slate-700/50 p-3 flex justify-between items-center sticky top-0 z-20 backdrop-blur-sm border-b border-slate-700/50">
+                                        <div className="flex-1"><h3 className="font-bold text-white text-lg flex items-center gap-2 flex-wrap">{productName}<button onClick={() => onAppendOrder(productName, guessPrice)} className="bg-emerald-600/80 hover:bg-emerald-500 text-white p-1 rounded-full shadow-lg active:scale-95"><Plus size={14} /></button></h3><div className="text-xs text-slate-400">數量: <span className="text-white font-bold">{totalQty}</span> · 總額: <span className="text-white font-bold">${totalAmount.toLocaleString()}</span></div></div>
+                                    </div>
+                                    <div className="divide-y divide-slate-700/50">
+                                        {items.map(t => (
+                                            <SwipeableListItem key={t.id} onDelete={async () => { await onDeleteTransaction(t.id); showToast("🗑️ 訂單已刪除", "error"); }} confirmMessage={`確定要刪除 "${t.customerName}" 的這筆訂單嗎？`}>
+                                                <div className="p-3 flex justify-between items-center w-full">
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${t.status === 'paid' ? 'bg-blue-500' : 'bg-yellow-500'}`}></div>
+                                                        <div className="min-w-0">
+                                                            <div className="text-slate-200 font-medium flex items-center gap-1">
+                                                                {t.customerName}
+                                                                {(t.quantity > 1) && <span className="text-xs bg-slate-600 px-1 rounded text-white flex-shrink-0">x{t.quantity}</span>}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-500 truncate">{t.note || new Date(t.date?.seconds * 1000).toLocaleDateString()}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                        <button onClick={() => onEditOrder(t)} className="p-1.5 text-slate-400 hover:text-white bg-slate-700/50 rounded-lg border border-slate-600">
+                                                            <Edit size={14} />
+                                                        </button>
+                                                        <span className="font-mono font-bold text-slate-300 w-14 text-right">${t.amount}</span>
+                                                        <button onClick={async () => { await updateTransactionStatus(t.id, t.status === 'pending' ? 'paid' : 'pending'); showToast("✅ 狀態已更新"); }} className={`text-xs px-2 py-1.5 rounded border transition-all w-14 text-center ${t.status === 'paid' ? 'bg-blue-500 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-600'}`}>{t.status === 'paid' ? '已匯款' : '待處理'}</button>
+                                                    </div>
+                                                </div>
+                                            </SwipeableListItem>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                         {sortedKeys.length === 0 && <div className="text-center py-10 text-slate-500"><div className="mb-2">📭</div>無符合條件的訂單</div>}
+                    </div>
+                    <BatchPurchaseModal isOpen={!!purchaseModalData} title={purchaseModalData?.title} message={purchaseModalData?.message} onConfirm={executeBatchPurchase} onCancel={() => setPurchaseModalData(null)} />
                 </div>
-            </div>
-        );
+            );
+        };
 
-        // 新增：報表模式 (Table View)
-        const TableView = ({ transactions }) => (
-          <div className="pb-20 h-full flex flex-col">
-            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-              <FileSpreadsheet size={24} className="text-emerald-400"/> 報表總覽
-            </h2>
-            <div className="flex-1 overflow-auto bg-slate-800 rounded-xl border border-slate-700 relative shadow-inner custom-scrollbar">
-               <table className="w-full text-left text-sm text-slate-300 whitespace-nowrap">
-                 <thead className="bg-slate-900 text-slate-400 sticky top-0 z-10 shadow-md">
-                   <tr>
-                     <th className="p-3 font-medium">日期</th>
-                     <th className="p-3 font-medium">顧客</th>
-                     <th className="p-3 font-medium">說明</th>
-                     <th className="p-3 font-medium text-right">金額</th>
-                     <th className="p-3 font-medium">狀態</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-700">
-                   {transactions.map(t => (
-                     <tr key={t.id} className="hover:bg-slate-700/50 transition-colors">
-                       <td className="p-3 text-slate-400 font-mono text-xs">{new Date(t.date?.seconds * 1000 || Date.now()).toLocaleDateString()}</td>
-                       <td className="p-3 font-medium text-white">{t.customerName || '-'}</td>
-                       <td className="p-3 max-w-[150px] truncate">
-                         <div className="flex flex-col">
-                            <span className="text-white">{t.description}</span>
-                            <span className="text-[10px] text-slate-500">{t.category}</span>
-                         </div>
-                       </td>
-                       <td className={`p-3 text-right font-mono font-bold ${t.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                         {t.amount?.toLocaleString()}
-                       </td>
-                       <td className="p-3">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                              t.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
-                              t.status === 'purchased' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' :
-                              t.status === 'shipped' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                              'bg-slate-700 text-slate-400 border-slate-600'
-                          }`}>
-                            {t.status === 'pending' ? '待處理' :
-                             t.status === 'purchased' ? '已採購' :
-                             t.status === 'shipped' ? '已發貨' : '已結案'}
-                          </span>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-               {transactions.length === 0 && (
-                 <div className="p-10 text-center text-slate-500">尚無資料</div>
-               )}
-            </div>
-          </div>
-        );
+        // WaitingGoodsView and HistoryView and ShippingCostView remain largely the same structure
+        // I will keep them as they were in V15.2 as they are stable
+        
+        // ... (WaitingGoodsView, HistoryView, ShippingCostView code from v15.2) ...
+        const WaitingGoodsView = ({ transactions, categories, updateTransactionStatus, onDeleteTransaction, showToast }) => {
+            const [selectedCategory, setSelectedCategory] = useState('All');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [confirmAction, setConfirmAction] = useState(null);
+            const { groups, sortedKeys } = useGroupedTransactions(transactions, 'purchased', searchTerm, selectedCategory);
 
-        const CustomersView = ({ customers, newCustomer, setNewCustomer, handleAddCustomer, handleDeleteCustomer, prepareTransactionForCustomer }) => (
-            <div className="pb-20">
+            const handleBatchShip = (productName, items) => { setConfirmAction({ type: 'ship', items, title: "確認寄出", message: `確定已將 "${productName}" (共 ${items.length} 筆) 全部寄出了嗎？` }); };
+            const executeBatchAction = async () => {
+                if(!confirmAction) return; setIsProcessing(true);
+                try { 
+                    const batch = writeBatch(db); 
+                    confirmAction.items.forEach(t => { const ref = doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions', t.id); if(confirmAction.type === 'ship') batch.update(ref, { status: 'shipped' }); }); 
+                    await batch.commit(); 
+                    showToast("🚚 商品已全數寄出！");
+                } catch(e) { console.error(e); alert("操作失敗"); }
+                setIsProcessing(false); setConfirmAction(null);
+            };
+            const handleSingleRevert = async (t) => { if(confirm(`確定要將 "${t.customerName}" 的 "${t.description}" 退回接單區嗎？`)) { await updateTransactionStatus(t.id, 'paid'); showToast("↩️ 已回復至接單區"); } };
+
+            return (
+                <div className="h-full flex flex-col">
+                    <div className="mb-2"><h2 className="text-2xl font-bold text-white flex items-center gap-2 mb-2"><Box size={24} className="text-purple-400"/> 等待商品區</h2></div>
+                    <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="搜尋待貨商品..." />
+                    <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar mb-2">
+                        <button onClick={() => setSelectedCategory('All')} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === 'All' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>全部</button>
+                        {categories.map(cat => (<button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${selectedCategory === cat.name ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>{cat.name}</button>))}
+                    </div>
+                    <div className="flex-1 overflow-auto bg-slate-900/50 rounded-xl custom-scrollbar space-y-4 p-1">
+                        {sortedKeys.map(productName => {
+                            const items = groups[productName];
+                            const totalQty = items.reduce((sum, t) => sum + (Number(t.quantity) || 1), 0);
+                            return (
+                                <div key={productName} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden relative shadow-md">
+                                    <div className="bg-slate-700/50 p-3 flex justify-between items-center sticky top-0 z-20 backdrop-blur-sm border-b border-slate-700/50">
+                                        <div className="flex-1"><h3 className="font-bold text-white text-lg">{productName}</h3><div className="text-xs text-slate-400">待出貨數量: <span className="text-white font-bold">{totalQty}</span></div></div>
+                                        <button onClick={() => handleBatchShip(productName, items)} className="flex-shrink-0 px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 transition-all border shadow-lg">全數寄出</button>
+                                    </div>
+                                    <div className="divide-y divide-slate-700/50">
+                                        {items.map(t => (
+                                            <SwipeableListItem key={t.id} onDelete={async () => { await onDeleteTransaction(t.id); showToast("🗑️ 刪除成功"); }} confirmMessage="確定要刪除這筆等待中的商品嗎？">
+                                                <div className="p-3 flex justify-between items-center w-full">
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0"><div className="min-w-0"><div className="font-medium text-white truncate">{t.customerName}</div><div className="text-xs text-purple-400 flex items-center gap-1">已採購 {(t.quantity > 1) && <span className="text-white bg-slate-600 px-1 rounded">x{t.quantity}</span>}</div></div></div>
+                                                    <div className="flex items-center gap-3 flex-shrink-0"><span className="font-mono font-bold text-slate-300">${t.amount?.toLocaleString()}</span><button onClick={() => handleSingleRevert(t)} className="text-slate-500 hover:text-yellow-500 p-1" title="回復到接單區"><RotateCcw size={16} /></button></div>
+                                                </div>
+                                            </SwipeableListItem>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {sortedKeys.length === 0 && <div className="p-10 text-center text-slate-500">沒有等待中的商品</div>}
+                    </div>
+                    <ConfirmModal isOpen={!!confirmAction} title={confirmAction?.title} message={confirmAction?.message} confirmText="確認" onConfirm={executeBatchAction} onCancel={() => setConfirmAction(null)} />
+                </div>
+            );
+        };
+
+        const HistoryView = memo(({ transactions, handleDeleteTransaction, updateTransactionStatus, showToast }) => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const historyTrans = transactions.filter(t => t.status === 'shipped' && (!searchTerm || t.description.includes(searchTerm) || t.customerName.includes(searchTerm)));
+            const [revertItem, setRevertItem] = useState(null);
+            const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+            const handleClearHistory = async () => {
+                const batch = writeBatch(db);
+                historyTrans.forEach(t => {
+                    const ref = doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions', t.id);
+                    batch.delete(ref);
+                });
+                try {
+                    await batch.commit();
+                    showToast("🗑️ 歷史訂單已全部清空");
+                } catch(e) {
+                    console.error(e);
+                    alert("刪除失敗 (資料量可能過大)");
+                }
+                setShowClearConfirm(false);
+            };
+
+            return (
+                <div className="h-full flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold text-white flex items-center gap-2"><History size={24} className="text-emerald-400"/> 歷史訂單</h2>
+                        {historyTrans.length > 0 && (
+                            <button onClick={() => setShowClearConfirm(true)} className="text-xs bg-rose-900/50 text-rose-300 border border-rose-800 px-3 py-1.5 rounded-lg hover:bg-rose-900 transition-colors">
+                                💥 清空歷史
+                            </button>
+                        )}
+                    </div>
+                    <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="搜尋歷史訂單..." />
+                    <div className="flex-1 overflow-auto space-y-2 custom-scrollbar pr-1">
+                        {historyTrans.map(t => (
+                            <SwipeableListItem key={t.id} onDelete={async () => { await handleDeleteTransaction(t.id); showToast("🗑️ 刪除成功"); }} confirmMessage="確定要永久刪除這筆歷史訂單嗎？">
+                                <div className="p-3 flex justify-between items-center w-full">
+                                    <div className="flex items-center gap-3 overflow-hidden"><CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0"/><div className="truncate"><div className="text-sm text-slate-300 flex items-center gap-2 truncate">{t.description} {(t.quantity > 1) && <span className="text-[10px] bg-slate-600 px-1 rounded text-white flex-shrink-0">x{t.quantity}</span>}</div><div className="text-xs text-slate-500">{t.customerName} · {new Date(t.date?.seconds * 1000).toLocaleDateString()}</div></div></div>
+                                    <div className="flex items-center gap-3"><span className="font-mono text-slate-400">${t.amount}</span><button onClick={() => setRevertItem(t)} className="text-slate-600 hover:text-yellow-500 p-1"><RotateCcw size={14} /></button></div>
+                                </div>
+                            </SwipeableListItem>
+                        ))}
+                         {historyTrans.length === 0 && <div className="p-10 text-center text-slate-500">沒有歷史資料</div>}
+                    </div>
+                    <ConfirmModal isOpen={!!revertItem} title="確認退回？" message="退回至等待區？" confirmText="退回" onConfirm={() => { updateTransactionStatus(revertItem.id, 'purchased'); showToast("↩️ 已回復至等待區"); setRevertItem(null); }} onCancel={() => setRevertItem(null)} />
+                    <ConfirmModal isOpen={showClearConfirm} title="⚠️ 危險操作：清空歷史" message={`確定要刪除所有 ${historyTrans.length} 筆歷史訂單嗎？\n此動作無法復原！`} confirmText="確認清空" isDestructive={true} onConfirm={handleClearHistory} onCancel={() => setShowClearConfirm(false)} />
+                </div>
+            );
+        });
+
+        const ShippingCostView = ({ transactions, onDeleteTransaction, showToast }) => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const costs = transactions.filter(t => t.category === '其他支出' && (!searchTerm || t.description.includes(searchTerm)));
+            const total = costs.reduce((sum, t) => sum + Number(t.amount), 0);
+
+            return (
+                <div className="h-full flex flex-col">
+                    <div className="mb-4"><h2 className="text-2xl font-bold text-white flex items-center gap-2 mb-1"><Banknote size={24} className="text-orange-400"/> 其他支出明細</h2><div className="text-sm text-slate-400">累計支出：<span className="text-white font-bold text-lg">${total.toLocaleString()}</span></div></div>
+                    <SearchBar value={searchTerm} onChange={setSearchTerm} placeholder="搜尋支出項目..." />
+                    <div className="flex-1 overflow-auto space-y-2 custom-scrollbar pr-1">
+                        {costs.map(t => (
+                            <SwipeableListItem key={t.id} onDelete={async () => { await onDeleteTransaction(t.id); showToast("🗑️ 紀錄已刪除"); }} confirmMessage="確定要刪除這筆支出紀錄嗎？">
+                                <div className="p-4 flex justify-between items-center w-full">
+                                    <div><div className="font-bold text-white">{t.description}</div><div className="text-xs text-slate-500">{new Date(t.date?.seconds * 1000).toLocaleDateString()}</div></div>
+                                    <div className="font-mono font-bold text-rose-400">-${t.amount}</div>
+                                </div>
+                            </SwipeableListItem>
+                        ))}
+                        {costs.length === 0 && <div className="p-10 text-center text-slate-500">尚無支出紀錄</div>}
+                    </div>
+                </div>
+            );
+        };
+
+        const ShippingCostModal = ({ isOpen, onClose, onSave }) => {
+            const [name, setName] = useState(''); const [amount, setAmount] = useState('');
+            if(!isOpen) return null;
+            const handleSave = () => { if(!name || !amount) return; onSave({ name, amount }); setName(''); setAmount(''); onClose(); };
+            return (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-200 p-4" style={{zIndex: 9999}}>
+                    <div className="bg-slate-900 w-full max-w-sm rounded-2xl p-6 border border-slate-700 shadow-2xl">
+                        <h3 className="text-xl font-bold text-white mb-4">💸 記錄其他支出</h3>
+                        <div className="space-y-4">
+                            <div><label className="block text-slate-400 text-xs mb-1">項目名稱</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" placeholder="例如：日本海運費、包材費" /></div>
+                            <div><label className="block text-slate-400 text-xs mb-1">金額</label><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" placeholder="$" /></div>
+                            <button onClick={handleSave} className="w-full bg-orange-600 text-white font-bold py-3 rounded-xl mt-2 hover:bg-orange-500">記錄支出</button>
+                            <button onClick={onClose} className="w-full py-2 text-slate-400">取消</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- DASHBOARD ---
+        const DashboardView = ({ stats, setIsAddModalOpen, setIsShippingModalOpen, setActiveTab }) => {
+            const [avatar, setAvatar] = useState(localStorage.getItem('user_avatar') || 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png');
+            const fileInputRef = useRef(null);
+            const handleAvatarClick = () => fileInputRef.current.click();
+            const handleFileChange = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onloadend = () => { const base64 = reader.result; setAvatar(base64); localStorage.setItem('user_avatar', base64); }; reader.readAsDataURL(file); } };
+
+            return (
+                <div className="space-y-6 pb-20">
+                    <div className="flex justify-between items-center">
+                        <div><h1 className="text-2xl font-bold text-white flex items-center gap-2">歪兔兔代購 <UsagiIcon /></h1><p className="text-slate-400 text-sm flex items-center gap-1"><Lock size={10} /> OMS v16.0 編輯加強版</p></div>
+                        <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-700 shadow-lg shadow-pink-500/20 cursor-pointer hover:scale-105 transition-transform relative group" onClick={handleAvatarClick}>
+                            <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera size={16} className="text-white"/></div>
+                        </div>
+                        <input type="file" ref={fileInputRef} style={{display: 'none'}} accept="image/*" onChange={handleFileChange} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <StatCard title="目前總資產" value={stats.balance} type="balance" icon={Wallet} />
+                        <div className="grid grid-cols-2 gap-4 md:col-span-2"><StatCard title="總收入" value={stats.income} type="income" icon={ArrowDownLeft} /><StatCard title="總支出" value={stats.expense} type="expense" icon={ArrowUpRight} /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setIsAddModalOpen(true)} className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white py-4 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 font-bold text-sm"><FolderPlus size={24} /> 開團管理</button>
+                        <button onClick={() => { setIsShippingModalOpen(true); }} className="bg-gradient-to-r from-orange-600 to-orange-500 text-white py-4 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 font-bold text-sm"><Banknote size={24} /> 記錄其他支出</button>
+                    </div>
+                    <button onClick={() => setActiveTab('shipping_list')} className="w-full bg-slate-800 text-orange-400 font-bold py-3 rounded-xl border border-orange-500/30 hover:bg-slate-700 flex items-center justify-center gap-2 text-sm shadow-sm">📋 查看其他支出明細</button>
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50 text-center text-slate-400 text-sm">請從下方選單切換檢視</div>
+                </div>
+            );
+        };
+
+        const CustomersView = memo(({ customers, newCustomer, setNewCustomer, handleAddCustomer, handleDeleteCustomer, showToast }) => {
+            const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+            return (
+            <div className="h-full flex flex-col">
                 <h2 className="text-2xl font-bold text-white mb-6">顧客名單</h2>
-                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6 shadow-lg">
+                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6 shadow-lg flex-shrink-0">
                     <h3 className="text-white font-medium mb-3 flex items-center gap-2"><UserPlus size={18} className="text-indigo-400"/> 新增顧客</h3>
                     <div className="grid gap-3">
                         <div className="grid grid-cols-2 gap-3">
-                            <input type="text" placeholder="暱稱" value={newCustomer.name} onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-indigo-500" />
+                            <input type="text" placeholder="暱稱 (必填)" value={newCustomer.name} onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-indigo-500" />
                             <input type="text" placeholder="社群 ID" value={newCustomer.socialId} onChange={(e) => setNewCustomer({...newCustomer, socialId: e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-indigo-500" />
                         </div>
                         <input type="text" placeholder="備註" value={newCustomer.note} onChange={(e) => setNewCustomer({...newCustomer, note: e.target.value})} className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-indigo-500" />
-                        <button onClick={handleAddCustomer} className="bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-500 active:scale-95 transition-transform">儲存顧客資料</button>
+                        <button onClick={() => { if(!newCustomer.name.trim()) { alert("請輸入顧客暱稱！"); return; } handleAddCustomer(); }} disabled={!newCustomer.name.trim()} className={`text-white py-2 rounded-lg font-medium transition-colors ${newCustomer.name.trim() ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}>儲存顧客資料</button>
                     </div>
                 </div>
-                <div className="grid gap-3">
+                <div className="flex-1 overflow-auto space-y-2 custom-scrollbar">
                     {customers.map(c => (
-                        <div key={c.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center group">
-                            <div>
-                                <div className="font-bold text-white text-lg">{c.name}</div>
-                                <div className="text-indigo-400 text-sm mb-1">{c.socialId}</div>
-                                <div className="text-slate-500 text-sm bg-slate-900/50 p-2 rounded max-w-[200px] truncate">{c.note || "無備註"}</div>
+                        <SwipeableListItem key={c.id} onDelete={() => setDeleteConfirmId(c.id)} confirmMessage="確定要刪除這位顧客嗎？">
+                            <div className="p-4 flex justify-between items-center w-full">
+                                <div><div className="font-bold text-white text-lg">{c.name}</div><div className="text-indigo-400 text-sm mb-1">{c.socialId}</div><div className="text-slate-500 text-sm bg-slate-900/50 p-2 rounded max-w-[200px] truncate">{c.note || "無備註"}</div></div>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleDeleteCustomer(c.id)} className="p-2 bg-rose-500/10 text-rose-500 rounded-lg"><Trash2 size={20} /></button>
-                                <button onClick={() => prepareTransactionForCustomer(c)} className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg"><PlusCircle size={20} /></button>
-                            </div>
-                        </div>
+                        </SwipeableListItem>
                     ))}
                 </div>
+                <ConfirmModal isOpen={!!deleteConfirmId} title="確認刪除顧客？" message="確定要刪除這位顧客嗎？這不會刪除他的歷史訂單，但會從名單中移除。" confirmText="刪除" isDestructive={true} onConfirm={() => { handleDeleteCustomer(deleteConfirmId); showToast("🗑️ 顧客已刪除", "error"); setDeleteConfirmId(null); }} onCancel={() => setDeleteConfirmId(null)} />
             </div>
-        );
+            );
+        });
 
-        const AddTransactionModal = ({ isOpen, onClose, newTrans, setNewTrans, templates, applyTemplate, customers, onSave }) => {
+        // ... GroupOrderModal, AddSingleOrderModal, ShippingCostModal (same as before) ...
+        const GroupOrderModal = ({ isOpen, onClose, customers, categories, onSave, onAddCategory, onDeleteCategory }) => {
+            const [mode, setMode] = useState('category'); const [newCategoryName, setNewCategoryName] = useState(''); const [selectedCategory, setSelectedCategory] = useState(''); const [productName, setProductName] = useState(''); const [amount, setAmount] = useState(''); const [selectedCustIds, setSelectedCustIds] = useState(new Set()); const [isProcessing, setIsProcessing] = useState(false); const [custSearch, setCustSearch] = useState(''); const [deleteCatId, setDeleteCatId] = useState(null);
             if (!isOpen) return null;
+            const filteredCustomers = customers.filter(c => c.name.toLowerCase().includes(custSearch.toLowerCase()) || c.socialId.toLowerCase().includes(custSearch.toLowerCase()));
+            const toggleCustomer = (id) => { const newSet = new Set(selectedCustIds); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); setSelectedCustIds(newSet); };
+            const handleSelectAll = () => { const allVisibleSelected = filteredCustomers.every(c => selectedCustIds.has(c.id)); const newSet = new Set(selectedCustIds); if (allVisibleSelected) filteredCustomers.forEach(c => newSet.delete(c.id)); else filteredCustomers.forEach(c => newSet.add(c.id)); setSelectedCustIds(newSet); };
+            const handleCreateCategory = async () => { if (!newCategoryName.trim()) return; await onAddCategory(newCategoryName); setSelectedCategory(newCategoryName); setNewCategoryName(''); setMode('product'); };
+            const handleSubmit = async () => { if (!selectedCategory || !productName || !amount || selectedCustIds.size === 0) { if (!selectedCategory) alert("請先選擇商品主題！"); return; } setIsProcessing(true); const fullName = `[${selectedCategory}] ${productName}`; await onSave({ productName: fullName, amount, quantity: 1, customerIds: Array.from(selectedCustIds) }); setIsProcessing(false); setProductName(''); setAmount(''); setSelectedCustIds(new Set()); setCustSearch(''); onClose(); };
+            const handleDeleteCat = async () => { if(!deleteCatId) return; await onDeleteCategory(deleteCatId, true); setDeleteCatId(null); };
 
             return (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end md:items-center justify-center animate-in fade-in duration-200">
-                    <div className="bg-slate-900 w-full md:w-96 rounded-t-2xl md:rounded-2xl p-6 border-t md:border border-slate-700 shadow-2xl">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white flex items-center gap-2">新增交易</h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24}/></button>
-                        </div>
-                        <div className="grid grid-cols-4 gap-2 mb-6">
-                            {templates.map((tpl, idx) => (
-                                <button key={idx} onClick={() => applyTemplate(tpl)} className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors ${newTrans.category === tpl.category ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                                    <tpl.icon size={18} /> <span className="text-[10px] md:text-xs">{tpl.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                        <div className="space-y-4">
-                            <div><label className="block text-slate-400 text-sm mb-1">金額</label><input type="number" value={newTrans.amount} onChange={(e) => setNewTrans({...newTrans, amount: e.target.value})} className="w-full bg-slate-800 border border-slate-700 text-white text-2xl font-bold p-3 rounded-xl" placeholder="0" /></div>
-                            <div>
-                                <label className="block text-slate-400 text-sm mb-1">顧客 (必填)</label>
-                                <select value={newTrans.customerId} onChange={(e) => { const cust = customers.find(c => c.id === e.target.value); setNewTrans({...newTrans, customerId: e.target.value, customerName: cust ? cust.name : ''}); }} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl">
-                                    <option value="" disabled>-- 請選擇顧客 --</option>
-                                    {customers.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                                </select>
-                            </div>
-                            <div><label className="block text-slate-400 text-sm mb-1">備註</label><input type="text" value={newTrans.description} onChange={(e) => setNewTrans({...newTrans, description: e.target.value})} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" placeholder="說明" /></div>
-                            <button onClick={onSave} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-indigo-500">確認儲存</button>
-                        </div>
-                    </div>
-                </div>
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end md:items-center justify-center animate-in fade-in duration-200"><div className="bg-slate-900 w-full md:w-[480px] rounded-t-2xl md:rounded-2xl p-6 border-t md:border border-slate-700 shadow-2xl h-[90vh] md:h-auto flex flex-col"><div className="flex justify-between items-center mb-4"><h3 className="text-xl font-bold text-white flex items-center gap-2"><FolderPlus className="text-emerald-400"/> 開團管理</h3><button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24}/></button></div>
+                <div className="grid grid-cols-2 gap-3 mb-6"><button onClick={() => setMode('category')} className={`py-4 rounded-xl font-bold flex flex-col items-center justify-center gap-1 transition-all ${mode === 'category' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}><FolderPlus size={24}/> 建立新主題</button><button onClick={() => setMode('product')} className={`py-4 rounded-xl font-bold flex flex-col items-center justify-center gap-1 transition-all ${mode === 'product' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}><ShoppingBag size={24}/> 新增商品</button></div>
+                {mode === 'category' && ( <div className="space-y-4 animate-in fade-in slide-in-from-left-5"><div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl"><label className="block text-emerald-400 font-bold mb-2">步驟 1：輸入主題名稱</label><input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="w-full bg-slate-900 border border-emerald-500/50 text-white p-4 rounded-xl text-lg" placeholder="例如：咒術迴戰..." autoFocus/></div><button onClick={handleCreateCategory} disabled={!newCategoryName.trim()} className={`w-full py-4 rounded-xl font-bold text-lg ${newCategoryName.trim() ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-500'}`}>確認建立主題</button><div className="mt-4"><label className="block text-slate-400 text-xs mb-2">現有主題列表 (可刪除)</label><div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">{categories.map(cat => (<div key={cat.id} className="flex justify-between items-center bg-slate-800 p-2 rounded text-sm text-slate-300 border border-slate-700">{cat.name}<button onClick={() => setDeleteCatId(cat.id)} className="text-rose-500 p-2 hover:bg-rose-900/30 rounded"><Trash2 size={16}/></button></div>))}</div></div></div> )}
+                {mode === 'product' && ( <div className="flex-1 flex flex-col space-y-4 animate-in fade-in slide-in-from-right-5"><div><label className="block text-slate-400 text-xs mb-1">選擇主題 (必選)</label><div className="relative"><select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-lg appearance-none"><option value="">-- 請下拉選擇主題 --</option>{categories.map(cat => (<option key={cat.id} value={cat.name}>{cat.name}</option>))}</select><div className="absolute right-3 top-4 pointer-events-none text-slate-500">▼</div></div></div><div className="grid grid-cols-3 gap-3"><div className="col-span-2"><label className="block text-slate-400 text-xs mb-1">商品名稱</label><input type="text" value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-2 rounded-lg" placeholder="例如：海報" /></div><div><label className="block text-slate-400 text-xs mb-1">單價</label><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-2 rounded-lg" placeholder="$" /></div></div><div className="flex-1 flex flex-col min-h-0"><div className="flex justify-between items-center mb-2"><label className="text-slate-400 text-sm">選擇購買顧客 ({selectedCustIds.size})</label><button onClick={handleSelectAll} className="text-xs text-indigo-400 font-medium">全選 / 取消 (當前搜尋)</button></div><input type="text" value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="搜尋顧客..." className="w-full bg-slate-800 border border-slate-700 text-white p-2 rounded-lg mb-2 text-sm focus:border-indigo-500 outline-none"/><div className="flex-1 overflow-y-auto bg-slate-800 rounded-xl border border-slate-700 p-2 custom-scrollbar"><div className="grid grid-cols-2 gap-2">{filteredCustomers.map(c => { const isSelected = selectedCustIds.has(c.id); return (<div key={c.id} onClick={() => toggleCustomer(c.id)} className={`p-3 rounded-lg border cursor-pointer transition-all flex items-center gap-2 ${isSelected ? 'bg-indigo-600/20 border-indigo-500 text-white' : 'bg-slate-900/50 border-slate-700 text-slate-400'}`}><div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-slate-500'}`}>{isSelected && <CheckCircle2 size={12} className="text-white"/>}</div><span className="truncate text-sm">{c.name}</span></div>); })}</div></div></div><button onClick={handleSubmit} disabled={isProcessing || !selectedCategory || !productName || !amount || selectedCustIds.size === 0} className={`w-full text-white font-bold py-4 rounded-xl mt-4 transition-all ${isProcessing || !selectedCategory || !productName || !amount || selectedCustIds.size === 0 ? 'bg-slate-700 text-slate-500' : 'bg-indigo-600 hover:bg-indigo-500 active:scale-95 shadow-lg'}`}>{isProcessing ? '建立中...' : `一鍵生成 ${selectedCustIds.size} 筆訂單`}</button></div> )}
+                </div><ConfirmModal isOpen={!!deleteCatId} title="確認刪除主題？" message="確定要刪除這個主題嗎？(不會影響已建立的訂單)" confirmText="刪除" isDestructive={true} onConfirm={handleDeleteCat} onCancel={() => setDeleteCatId(null)} /></div>
+            );
+        };
+
+        const AddSingleOrderModal = ({ isOpen, onClose, customers, onSave, defaultProduct, defaultPrice }) => {
+            const [customerId, setCustomerId] = useState(''); const [quantity, setQuantity] = useState(1); const [amount, setAmount] = useState(defaultPrice || ''); const [note, setNote] = useState(''); const [custSearch, setCustSearch] = useState('');
+            useEffect(() => { if(defaultPrice) setAmount(defaultPrice); setQuantity(1); setCustomerId(''); setNote(''); setCustSearch(''); }, [defaultProduct, defaultPrice, isOpen]);
+            if (!isOpen) return null;
+            const filteredCustomers = customers.filter(c => c.name.toLowerCase().includes(custSearch.toLowerCase()));
+            const handleSave = () => { if(!customerId || !amount) return; onSave({ productName: defaultProduct, customerId, quantity: Number(quantity), amount: Number(amount), note }); onClose(); };
+            return (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-200"><div className="bg-slate-900 w-full max-w-sm rounded-2xl p-6 border border-slate-700 shadow-2xl"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-white">追加訂單</h3><button onClick={onClose} className="text-slate-400 hover:text-white"><X size={24}/></button></div><div className="mb-4 p-3 bg-slate-800 rounded-lg"><div className="text-xs text-slate-400">商品名稱</div><div className="text-white font-bold text-lg">{defaultProduct}</div></div><div className="space-y-4"><div><label className="block text-slate-400 text-sm mb-1">搜尋並選擇顧客 (必填)</label><input type="text" value={custSearch} onChange={(e) => setCustSearch(e.target.value)} placeholder="搜尋..." className="w-full bg-slate-800 border border-slate-700 text-white p-2 rounded-t-xl text-sm outline-none border-b-0"/><select value={customerId} onChange={(e) => setCustomerId(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-b-xl rounded-t-none"><option value="" disabled>-- 請選擇 --</option>{filteredCustomers.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}</select></div><div className="grid grid-cols-2 gap-3"><div><label className="block text-slate-400 text-sm mb-1">數量</label><input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" /></div><div><label className="block text-slate-400 text-sm mb-1">總金額</label><input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" /></div></div><div><label className="block text-slate-400 text-sm mb-1">備註</label><input type="text" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-slate-800 border border-slate-700 text-white p-3 rounded-xl" /></div><button onClick={handleSave} disabled={!customerId} className={`w-full text-white font-bold py-4 rounded-xl mt-4 ${customerId ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-700 text-slate-500'}`}>確認追加</button></div></div></div>
             );
         };
 
@@ -354,101 +716,138 @@
             const [activeTab, setActiveTab] = useState('dashboard');
             const [transactions, setTransactions] = useState([]);
             const [customers, setCustomers] = useState([]);
-            const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-            const [newTrans, setNewTrans] = useState({ type: 'income', amount: '', description: '', customerId: '', customerName: '', category: '代購訂金', status: 'pending' });
+            const [categories, setCategories] = useState([]);
+            const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+            const [isAppendModalOpen, setIsAppendModalOpen] = useState(false);
+            const [isShippingModalOpen, setIsShippingModalOpen] = useState(false);
+            const [appendProduct, setAppendProduct] = useState('');
+            const [appendPrice, setAppendPrice] = useState('');
             const [newCustomer, setNewCustomer] = useState({ name: '', socialId: '', note: '' });
+            const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+            const [editingOrder, setEditingOrder] = useState(null);
+
+            const showToast = (message, type = 'success') => {
+                setToast({ show: true, message, type });
+                setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+            };
 
             useEffect(() => {
                 if (!auth) return;
                 const unsubscribe = onAuthStateChanged(auth, (u) => {
-                    if (u) setUser(u);
-                    else signInAnonymously(auth).catch(e => console.error(e));
+                    if (u) setUser(u); else signInAnonymously(auth).catch(e => console.error(e));
                 });
                 return () => unsubscribe();
             }, []);
 
             useEffect(() => {
                 if (!user || !db) return;
-                const qTrans = query(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), orderBy('date', 'desc'));
+                const qTrans = query(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions'), orderBy('date', 'desc'));
                 const unsubTrans = onSnapshot(qTrans, (s) => setTransactions(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-                const qCust = query(collection(db, 'artifacts', appId, 'users', user.uid, 'customers'), orderBy('createdAt', 'desc'));
+                const qCust = query(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'customers'), orderBy('createdAt', 'desc'));
                 const unsubCust = onSnapshot(qCust, (s) => setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-                return () => { unsubTrans(); unsubCust(); };
+                const qCat = query(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'categories'), orderBy('createdAt', 'desc'));
+                const unsubCat = onSnapshot(qCat, (s) => setCategories(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
+                return () => { unsubTrans(); unsubCust(); unsubCat(); };
             }, [user]);
 
             const stats = useMemo(() => {
                 let income = 0, expense = 0;
-                transactions.forEach(t => { if (t.type === 'income') income += Number(t.amount); else expense += Number(t.amount); });
+                transactions.forEach(t => { 
+                    if (t.type === 'income') income += Number(t.amount); 
+                    else if (t.type === 'expense') expense += Number(t.amount); 
+                });
                 return { income, expense, balance: income - expense };
             }, [transactions]);
 
-            const handleAddTransaction = async () => {
-                if (!user || !newTrans.amount) return;
-                if (!newTrans.customerId) return;
-                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), { ...newTrans, amount: Number(newTrans.amount), date: serverTimestamp() });
-                setIsAddModalOpen(false);
-                setNewTrans({ type: 'income', amount: '', description: '', customerId: '', customerName: '', category: '代購訂金', status: 'pending' });
+            const handleGroupOrder = async ({ productName, amount, customerIds, quantity }) => {
+                if (!user) return;
+                const batch = writeBatch(db);
+                customerIds.forEach(custId => {
+                    const cust = customers.find(c => c.id === custId);
+                    const newRef = doc(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions'));
+                    batch.set(newRef, { description: productName, amount: Number(amount), quantity: Number(quantity) || 1, customerId: custId, customerName: cust ? cust.name : '未知顧客', type: 'income', category: '商品採購', status: 'pending', date: serverTimestamp() });
+                });
+                try { await batch.commit(); showToast("✅ 開團成功！"); } catch (e) { console.error("Batch error", e); alert("建立失敗"); }
             };
-
-            const handleAddCustomer = async () => {
-                if (!user || !newCustomer.name) return;
-                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'customers'), { ...newCustomer, createdAt: serverTimestamp() });
-                setNewCustomer({ name: '', socialId: '', note: '' });
-            };
-
-            const handleDeleteCustomer = async (id) => await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'customers', id));
-            const handleDeleteTransaction = async (id) => await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id));
-            const updateTransactionStatus = async (id, newStatus) => await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id), { status: newStatus });
-            const prepareTransactionForCustomer = (c) => { setNewTrans(prev => ({...prev, customerId: c.id, customerName: c.name})); setIsAddModalOpen(true); };
-
-            const templates = [
-                { label: '收到訂金', type: 'income', category: '代購訂金', status: 'pending', icon: Wallet },
-                { label: '購買商品', type: 'expense', category: '商品採購', status: 'purchased', icon: Package },
-                { label: '支付運費', type: 'expense', category: '國際運費', status: 'shipped', icon: Truck },
-                { label: '補款結算', type: 'income', category: '尾款補款', status: 'completed', icon: CheckCircle2 },
-            ];
             
-            const applyTemplate = (tpl) => setNewTrans(prev => ({ ...prev, type: tpl.type, category: tpl.category, description: tpl.description || '', status: tpl.status }));
+            const handleAppendOrder = async ({ productName, customerId, quantity, amount, note }) => {
+                if (!user) return;
+                const cust = customers.find(c => c.id === customerId);
+                await addDoc(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions'), { description: productName, amount: Number(amount), quantity: Number(quantity), customerId: customerId, customerName: cust ? cust.name : '未知顧客', note: note || '', type: 'income', category: '商品採購', status: 'pending', date: serverTimestamp() });
+                showToast("✅ 追加成功！");
+            };
 
-            // Nav Button Component for cleaner JSX
-            const NavButton = ({ icon: Icon, label, tab }) => (
-                <button 
-                    onClick={() => setActiveTab(tab)}
-                    className={`p-2 rounded-xl flex flex-col items-center gap-1 transition-colors ${activeTab === tab ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                    <Icon size={24} />
-                    <span className="text-[10px]">{label}</span>
-                </button>
-            );
+            const handleShippingCost = async ({ name, amount }) => {
+                if(!user) return;
+                await addDoc(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions'), {
+                    type: 'expense',
+                    category: '其他支出',
+                    description: name,
+                    amount: Number(amount),
+                    status: 'completed',
+                    date: serverTimestamp()
+                });
+                showToast("✅ 支出已記錄！");
+            };
+            
+            const handleEditOrder = async (id, data) => {
+                if (!user) return;
+                try {
+                    await updateDoc(doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions', id), data);
+                    showToast("✅ 訂單已修改！");
+                } catch (e) {
+                    console.error(e);
+                    showToast("修改失敗", "error");
+                }
+            };
+
+            const openAppendModal = (productName, defaultPrice) => { setAppendProduct(productName); setAppendPrice(defaultPrice); setIsAppendModalOpen(true); };
+            const handleAddCustomer = async () => { if (!user || !newCustomer.name) return; await addDoc(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'customers'), { ...newCustomer, createdAt: serverTimestamp() }); setNewCustomer({ name: '', socialId: '', note: '' }); showToast("✅ 顧客已新增"); };
+            const handleAddCategory = async (name) => { if (!user || !name) return; await addDoc(collection(db, 'runy_buy_shared', SHARED_GROUP_ID, 'categories'), { name, createdAt: serverTimestamp() }); };
+            
+            const handleDeleteCategory = async (catId, isCategory = false) => {
+                if(isCategory) {
+                    await deleteDoc(doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'categories', catId));
+                    showToast("🗑️ 主題已刪除");
+                } else {
+                    await deleteDoc(doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions', catId));
+                }
+            };
+
+            const handleDeleteCustomer = async (id) => await deleteDoc(doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'customers', id));
+            const handleDeleteTransaction = async (id) => await deleteDoc(doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions', id));
+            const updateTransactionStatus = async (id, newStatus) => await updateDoc(doc(db, 'runy_buy_shared', SHARED_GROUP_ID, 'transactions', id), { status: newStatus });
+            const NavButton = ({ icon: Icon, label, tab }) => ( <button onClick={() => setActiveTab(tab)} className={`p-2 rounded-xl flex flex-col items-center gap-1 transition-colors ${activeTab === tab ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}><Icon size={24} /><span className="text-[10px]">{label}</span></button> );
 
             if (!firebaseConfig.apiKey) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white p-6 text-center">Config 錯誤</div>;
-            if (!user) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">載入中...</div>;
+            if (!user) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white"><div className="flex flex-col items-center gap-4"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div><p className="text-slate-400 text-sm">正在載入帳本資料...</p></div></div>;
 
             return (
-                <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30">
-                    <div className="max-w-md mx-auto min-h-screen relative bg-slate-900 shadow-2xl overflow-hidden">
-                        <div className="h-full overflow-y-auto p-5 custom-scrollbar pb-24">
-                            {activeTab === 'dashboard' && <DashboardView stats={stats} transactions={transactions} setIsAddModalOpen={setIsAddModalOpen} setActiveTab={setActiveTab} updateTransactionStatus={updateTransactionStatus} handleDeleteTransaction={handleDeleteTransaction} />}
-                            {/* Removed duplicate DashboardView render for 'ledger' tab to avoid confusion. 'ledger' tab content is now implicitly handled if NavButton for it existed, but it was removed in previous steps. */}
-                            {activeTab === 'ledger' && ( // "Ledger" tab logic from previous, but now we have "Table" tab. Let's keep "ledger" for "View All" in dashboard
-                                <div className="pb-20 h-full flex flex-col">
-                                    <h2 className="text-2xl font-bold text-white mb-6">帳本明細 (卡片)</h2>
-                                    <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-                                        {transactions.map(t => <TransactionItem key={t.id} t={t} onStatusUpdate={updateTransactionStatus} onDelete={handleDeleteTransaction}/>)}
-                                    </div>
-                                </div>
-                            )}
-                            {activeTab === 'table' && <TableView transactions={transactions} />}
-                            {activeTab === 'customers' && <CustomersView customers={customers} newCustomer={newCustomer} setNewCustomer={setNewCustomer} handleAddCustomer={handleAddCustomer} handleDeleteCustomer={handleDeleteCustomer} prepareTransactionForCustomer={prepareTransactionForCustomer} />}
-                        </div>
-                        <div className="absolute bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 p-2 flex justify-around items-center z-40 pb-6 md:pb-2">
-                            <NavButton icon={Wallet} label="概覽" tab="dashboard" />
-                            <NavButton icon={FileSpreadsheet} label="報表" tab="table" />
-                            <button onClick={() => setIsAddModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full -mt-8 shadow-lg shadow-indigo-600/40 border-4 border-slate-900 transition-transform hover:scale-105 active:scale-95"><PlusCircle size={32} /></button>
-                            <NavButton icon={Users} label="顧客" tab="customers" />
-                        </div>
+                <div className="w-full max-w-md mx-auto h-full bg-slate-900 shadow-2xl relative flex flex-col">
+                    <Toast message={toast.message} type={toast.type} isVisible={toast.show} onClose={() => setToast(prev => ({ ...prev, show: false }))} />
+                    
+                    <div className="flex-1 overflow-y-auto p-5 pb-24 custom-scrollbar">
+                        {activeTab === 'dashboard' && <DashboardView stats={stats} setIsAddModalOpen={setIsGroupModalOpen} setIsShippingModalOpen={setIsShippingModalOpen} setActiveTab={setActiveTab} />}
+                        {activeTab === 'shipping_list' && <ShippingCostView transactions={transactions} onDeleteTransaction={handleDeleteTransaction} showToast={showToast} />}
+                        {activeTab === 'orders' && <ActiveOrdersView transactions={transactions} categories={categories} updateTransactionStatus={updateTransactionStatus} onAppendOrder={openAppendModal} onDeleteTransaction={handleDeleteTransaction} onEditOrder={setEditingOrder} showToast={showToast} />}
+                        {activeTab === 'waiting' && <WaitingGoodsView transactions={transactions} categories={categories} updateTransactionStatus={updateTransactionStatus} onDeleteTransaction={handleDeleteTransaction} showToast={showToast} />}
+                        {activeTab === 'history' && <HistoryView transactions={transactions} handleDeleteTransaction={handleDeleteTransaction} updateTransactionStatus={updateTransactionStatus} showToast={showToast} />}
+                        {activeTab === 'customers' && <CustomersView customers={customers} newCustomer={newCustomer} setNewCustomer={setNewCustomer} handleAddCustomer={handleAddCustomer} handleDeleteCustomer={handleDeleteCustomer} showToast={showToast} />}
                     </div>
-                    <AddTransactionModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} newTrans={newTrans} setNewTrans={setNewTrans} templates={templates} applyTemplate={applyTemplate} customers={customers} onSave={handleAddTransaction} />
+
+                    <div className="absolute bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-2 flex justify-around items-center z-40 pb-6 md:pb-2">
+                        <NavButton icon={Wallet} label="首頁" tab="dashboard" />
+                        <NavButton icon={ClipboardList} label="接單" tab="orders" />
+                        <button onClick={() => setIsGroupModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full -mt-8 shadow-lg shadow-indigo-600/40 border-4 border-slate-900 transition-transform hover:scale-105 active:scale-95"><FolderPlus size={32} /></button>
+                        <NavButton icon={Box} label="等待" tab="waiting" />
+                        <NavButton icon={History} label="歷史" tab="history" />
+                        <NavButton icon={Users} label="顧客" tab="customers" />
+                    </div>
+
+                    <GroupOrderModal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} customers={customers} categories={categories} onSave={handleGroupOrder} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} />
+                    <AddSingleOrderModal isOpen={isAppendModalOpen} onClose={() => setIsAppendModalOpen(false)} customers={customers} onSave={handleAppendOrder} defaultProduct={appendProduct} defaultPrice={appendPrice} />
+                    <ShippingCostModal isOpen={isShippingModalOpen} onClose={() => setIsShippingModalOpen(false)} onSave={handleShippingCost} />
+                    <EditOrderModal isOpen={!!editingOrder} onClose={() => setEditingOrder(null)} order={editingOrder} onSave={handleEditOrder} />
                 </div>
             );
         };

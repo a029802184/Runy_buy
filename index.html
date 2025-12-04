@@ -3,8 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>歪兔兔代購 OMS v16</title>
+    <title>歪兔兔代購 OMS v16.2</title>
     
+    <!-- 防快取金牌 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <!-- 加入主畫面設定 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -78,7 +83,7 @@
             Package, Truck, CheckCircle2, UserPlus, Trash2, X, 
             Cloud, Share, HelpCircle, FileSpreadsheet, List, Lock, Download,
             ClipboardList, History, Archive, Box, ShoppingBag, CheckSquare, Plus, AlertTriangle,
-            RotateCcw, Edit, Check, Tag, FolderPlus, Layers, Search, Banknote, Camera, Pencil
+            RotateCcw, Edit, Check, Tag, FolderPlus, Layers, Search, Banknote, Camera, Pencil, RefreshCw
         } from 'lucide-react';
         import { initializeApp } from 'firebase/app';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -108,6 +113,7 @@
         }
 
         const SHARED_GROUP_ID = 'main_accounting_group'; 
+        const APP_VERSION = "v16.2";
 
         const UsagiIcon = () => (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-yellow-300">
@@ -203,7 +209,6 @@
             );
         };
 
-        // NEW: Edit Order Modal
         const EditOrderModal = ({ isOpen, onClose, order, onSave }) => {
             const [quantity, setQuantity] = useState(0);
             const [amount, setAmount] = useState(0);
@@ -464,10 +469,6 @@
             );
         };
 
-        // WaitingGoodsView and HistoryView and ShippingCostView remain largely the same structure
-        // I will keep them as they were in V15.2 as they are stable
-        
-        // ... (WaitingGoodsView, HistoryView, ShippingCostView code from v15.2) ...
         const WaitingGoodsView = ({ transactions, categories, updateTransactionStatus, onDeleteTransaction, showToast }) => {
             const [selectedCategory, setSelectedCategory] = useState('All');
             const [searchTerm, setSearchTerm] = useState('');
@@ -619,7 +620,6 @@
             );
         };
 
-        // --- DASHBOARD ---
         const DashboardView = ({ stats, setIsAddModalOpen, setIsShippingModalOpen, setActiveTab }) => {
             const [avatar, setAvatar] = useState(localStorage.getItem('user_avatar') || 'https://cdn-icons-png.flaticon.com/512/3081/3081559.png');
             const fileInputRef = useRef(null);
@@ -629,13 +629,21 @@
             return (
                 <div className="space-y-6 pb-20">
                     <div className="flex justify-between items-center">
-                        <div><h1 className="text-2xl font-bold text-white flex items-center gap-2">歪兔兔代購 <UsagiIcon /></h1><p className="text-slate-400 text-sm flex items-center gap-1"><Lock size={10} /> OMS v16.0 編輯加強版</p></div>
+                        <div><h1 className="text-2xl font-bold text-white flex items-center gap-2">歪兔兔代購 <UsagiIcon /></h1><p className="text-slate-400 text-sm flex items-center gap-1"><Lock size={10} /> OMS v16.2 穩定修復版</p></div>
                         <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-700 shadow-lg shadow-pink-500/20 cursor-pointer hover:scale-105 transition-transform relative group" onClick={handleAvatarClick}>
                             <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera size={16} className="text-white"/></div>
                         </div>
                         <input type="file" ref={fileInputRef} style={{display: 'none'}} accept="image/*" onChange={handleFileChange} />
                     </div>
+                    
+                    {/* Add Version Badge at bottom of Dashboard */}
+                    <div className="text-center">
+                        <div className="inline-block px-3 py-1 bg-slate-800 rounded-full text-xs text-slate-500 border border-slate-700">
+                            App Version: {APP_VERSION}
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <StatCard title="目前總資產" value={stats.balance} type="balance" icon={Wallet} />
                         <div className="grid grid-cols-2 gap-4 md:col-span-2"><StatCard title="總收入" value={stats.income} type="income" icon={ArrowDownLeft} /><StatCard title="總支出" value={stats.expense} type="expense" icon={ArrowUpRight} /></div>
@@ -680,7 +688,6 @@
             );
         });
 
-        // ... GroupOrderModal, AddSingleOrderModal, ShippingCostModal (same as before) ...
         const GroupOrderModal = ({ isOpen, onClose, customers, categories, onSave, onAddCategory, onDeleteCategory }) => {
             const [mode, setMode] = useState('category'); const [newCategoryName, setNewCategoryName] = useState(''); const [selectedCategory, setSelectedCategory] = useState(''); const [productName, setProductName] = useState(''); const [amount, setAmount] = useState(''); const [selectedCustIds, setSelectedCustIds] = useState(new Set()); const [isProcessing, setIsProcessing] = useState(false); const [custSearch, setCustSearch] = useState(''); const [deleteCatId, setDeleteCatId] = useState(null);
             if (!isOpen) return null;
